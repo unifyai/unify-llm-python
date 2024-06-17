@@ -1,5 +1,4 @@
 from typing import AsyncGenerator, Dict, Generator, List, Optional, Union
-
 import openai
 import requests
 from unify.exceptions import BadRequestError, UnifyError, status_error_map
@@ -130,6 +129,7 @@ class Unify:
         temperature: Optional[float] = 1.0,
         stop: Optional[List[str]] = None,
         stream: bool = False,
+        response_format: Optional[dict] = {"type": "text"}
     ) -> Union[Generator[str, None, None], str]:  # noqa: DAR101, DAR201, DAR401
         """Generate content using the Unify API.
 
@@ -157,6 +157,9 @@ class Unify:
             If False, generates content as a single response.
             Defaults to False.
 
+            response_format (Optional[str]): The format of the response that will be used for openai models
+            Will be sent as a parameter inside response_format= {type : format} in the request body
+            format can be either "json_object" or "text". User has to also explicitly ask for JSON in the prompt!
         Returns:
             Union[Generator[str, None, None], str]: If stream is True,
              returns a generator yielding chunks of content.
@@ -179,11 +182,11 @@ class Unify:
             return self._generate_stream(contents, self._endpoint,
                                           max_tokens=max_tokens,
                                           temperature=temperature,
-                                          stop=stop)
+                                          stop=stop, response_format=response_format)
         return self._generate_non_stream(contents, self._endpoint,
                                           max_tokens=max_tokens,
                                           temperature=temperature,
-                                          stop=stop)
+                                          stop=stop, response_format=response_format)
 
     def get_credit_balance(self) -> float:
         # noqa: DAR201, DAR401
@@ -218,6 +221,7 @@ class Unify:
         max_tokens: Optional[int] = 1024,
         temperature: Optional[float] = 1.0,
         stop: Optional[List[str]] = None,
+        response_format: Optional[dict] = {"type": "text"},
     ) -> Generator[str, None, None]:
         try:
             chat_completion = self.client.chat.completions.create(
@@ -227,6 +231,7 @@ class Unify:
                 temperature=temperature,
                 stop=stop,
                 stream=True,
+                response_format=response_format,
             )
             for chunk in chat_completion:
                 content = chunk.choices[0].delta.content  # type: ignore[union-attr]
@@ -243,6 +248,7 @@ class Unify:
         max_tokens: Optional[int] = 1024,
         temperature: Optional[float] = 1.0,
         stop: Optional[List[str]] = None,
+        response_format: Optional[dict] = {"type": "text"},
     ) -> str:
         try:
             chat_completion = self.client.chat.completions.create(
@@ -252,7 +258,7 @@ class Unify:
                 temperature=temperature,
                 stop=stop,
                 stream=False,
-            )
+                response_format= response_format)
             self.set_provider(
                 chat_completion.model.split(  # type: ignore[union-attr]
                     "@",
@@ -413,6 +419,7 @@ class AsyncUnify:
         temperature: Optional[float] = 1.0,
         stop: Optional[List[str]] = None,
         stream: bool = False,
+        response_format: Optional[dict] = {"type": "text"},
     ) -> Union[AsyncGenerator[str, None], str]:  # noqa: DAR101, DAR201, DAR401
         """Generate content asynchronously using the Unify API.
 
@@ -440,6 +447,10 @@ class AsyncUnify:
             If False, generates content as a single response.
             Defaults to False.
 
+            format (Optional[str]): The format of the response that will be used for openai models
+            Will be sent as a parameter inside response_format= {type : format} in the request body
+            format can be either "json_object" or "text". User has to also explicitly ask for JSON in the prompt!
+
         Returns:
             Union[AsyncGenerator[str, None], List[str]]: If stream is True,
             returns an asynchronous generator yielding chunks of content.
@@ -460,8 +471,8 @@ class AsyncUnify:
             raise UnifyError("You must provide either the user_prompt or messages!")
 
         if stream:
-            return self._generate_stream(contents, self._endpoint, max_tokens=max_tokens, stop=stop, temperature=temperature)
-        return await self._generate_non_stream(contents, self._endpoint, max_tokens=max_tokens, stop=stop, temperature=temperature)
+            return self._generate_stream(contents, self._endpoint, max_tokens=max_tokens, stop=stop, temperature=temperature,response_format=response_format)
+        return await self._generate_non_stream(contents, self._endpoint, max_tokens=max_tokens, stop=stop, temperature=temperature,response_format=response_format)
 
     async def _generate_stream(
         self,
@@ -470,6 +481,7 @@ class AsyncUnify:
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = 1.0,
         stop: Optional[List[str]] = None,
+        response_format: Optional[dict] = {"type": "text"},
     ) -> AsyncGenerator[str, None]:
         try:
             async_stream = await self.client.chat.completions.create(
@@ -479,6 +491,7 @@ class AsyncUnify:
                 temperature=temperature,
                 stop=stop,
                 stream=True,
+                response_format= response_format,
             )
             async for chunk in async_stream:  # type: ignore[union-attr]
                 self.set_provider(chunk.model.split("@")[-1])
@@ -493,6 +506,7 @@ class AsyncUnify:
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = 1.0,
         stop: Optional[List[str]] = None,
+        response_format: Optional[dict] = {"type": "text"}
     ) -> str:
         try:
             async_response = await self.client.chat.completions.create(
@@ -502,6 +516,7 @@ class AsyncUnify:
                 temperature=temperature,
                 stop=stop,
                 stream=False,
+                response_format = response_format,
             )
             self.set_provider(async_response.model.split("@")[-1])  # type: ignore
             return async_response.choices[0].message.content.strip(" ")  # type: ignore # noqa: E501, WPS219
